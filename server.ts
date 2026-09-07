@@ -116,7 +116,137 @@ function getDashboardPayload() {
   };
 }
 
+// Helper for live traceability data
+function getTraceabilityPayload() {
+  const now = new Date();
+  return {
+    components: {
+      api_gateway: { status: "healthy", requests_15m: 1420, errors_5xx_15m: 0 },
+      kinesis: { status: "healthy", iterator_age_ms: 320, put_failed_15m: 0 },
+      flink: { status: "warning", millis_behind_latest: 18500, full_restarts_15m: 0, downtime_ms: 0 },
+      dynamodb: { status: "healthy", throttled_15m: 0, system_errors_15m: 0 }
+    },
+    reconciliation: {
+      latest_status: "FAIL",
+      latest_window: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
+      latest_checked_at: now.toISOString(),
+      latest_failed_keys: ["STORE-001/ING-002"],
+      recent: { PASS: 22, FAIL: 2, INCONCLUSIVE: 1 }
+    },
+    settlement_timeline: [
+      {
+        run_id: "recon-20260907T1145-d2f2",
+        at: new Date(now.getTime() - 2 * 60 * 1000).toISOString(),
+        store_id: "STORE-001",
+        ingredient_id: "ING-002",
+        status: "GAP",
+        prev_settled_sequence: 4500,
+        settled_sequence: 4520,
+        settled_quantity: "12450.50",
+        settlement_version: 12,
+        conflict: true,
+        verify: { resolved: false, expected_settled_sequence: 4520, observed_settled_sequence: 4515 },
+        reasons: ["bronze_raw != flink_raw", "sequence gap detected between 4515 and 4520"]
+      },
+      {
+        run_id: "recon-20260907T1140-a1b2",
+        at: new Date(now.getTime() - 7 * 60 * 1000).toISOString(),
+        store_id: "STORE-001",
+        ingredient_id: "ING-001",
+        status: "APPLIED",
+        prev_settled_sequence: 3800,
+        settled_sequence: 3850,
+        settled_quantity: "24800.00",
+        settlement_version: 8,
+        conflict: false,
+        verify: { resolved: true, expected_settled_sequence: 3850, observed_settled_sequence: 3850 },
+        reasons: []
+      },
+      {
+        run_id: "recon-20260907T1135-c3d4",
+        at: new Date(now.getTime() - 12 * 60 * 1000).toISOString(),
+        store_id: "STORE-001",
+        ingredient_id: "ING-003",
+        status: "PENDING",
+        prev_settled_sequence: 1200,
+        settled_sequence: 1250,
+        settled_quantity: "8200.00",
+        settlement_version: 5,
+        conflict: false,
+        verify: null,
+        reasons: ["awaiting flink checkpoint ack"]
+      }
+    ],
+    anomaly_recoveries: [
+      {
+        run_id: "recon-20260907T1145-d2f2",
+        detected_at: new Date(now.getTime() - 3 * 60 * 1000).toISOString(),
+        store_id: "STORE-001",
+        ingredient_id: "ING-002",
+        window_start: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
+        anomaly_type: "SEQUENCE_GAP",
+        escalate: true,
+        step1_detect: {
+          reasons: ["bronze_raw != flink_raw", "sequence gap detected between 4515 and 4520"],
+          observed: { bronze_raw_record_count: 120, flink_raw_source_count: 115 },
+          expected: { transport: "bronze_raw == flink_raw", gaps: 0 },
+          safe_cutoff_hint: 4515
+        },
+        step2_compute_correction: {
+          source: "athena:bronze_events",
+          prev_settled_sequence: 4500,
+          safe_contiguous_cutoff: 4515,
+          settled_quantity: "12450.50",
+          settlement_version: 12,
+          source_event_ids: ["evt_4501", "evt_4502"],
+          conflict: true
+        },
+        step3_apply: {
+          target: "dynamodb:inventory_realtime_state",
+          expected_settled_sequence: 4520,
+          expected_settlement_version: 12,
+          observed_settled_sequence: 4515,
+          observed_settlement_version: 12,
+          resolved: false
+        },
+        outcome: "unresolved_gap"
+      }
+    ],
+    _meta: {
+      lookback_days: 2,
+      ops_docs: {
+        reconciliation_result: 25,
+        data_quality_anomaly: 6,
+        settlement_history: 25
+      }
+    }
+  };
+}
+
 // API Routes
+app.get("/api/ops/traceability", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  try {
+    const headers: Record<string, string> = {
+      "Cache-Control": "no-store"
+    };
+    if (process.env.OPS_API_KEY) {
+      headers["x-api-key"] = process.env.OPS_API_KEY;
+    }
+    const apiRes = await fetch("https://d2vhgkn5awwm03.cloudfront.net/api/ops/traceability", {
+      headers
+    });
+    if (!apiRes.ok) {
+      throw new Error(`External API status: ${apiRes.status}`);
+    }
+    const data = await apiRes.json();
+    res.json(data);
+  } catch (err: any) {
+    console.warn("Traceability external API unreachable, falling back to mock payload:", err?.message);
+    res.json(getTraceabilityPayload());
+  }
+});
+
 app.get("/api/dashboard", async (req, res) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   try {

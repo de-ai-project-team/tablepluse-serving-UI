@@ -1,0 +1,6 @@
+{
+  "name": "TABLEPULSE 점주용 실시간 대시보드",
+  "description": "음식점 점주를 위한 실시간 재고 분석, 품절 위험 경고 및 AI 스마트 발주 추천 대시보드",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-safe: var(--safe);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+}
+
+:root {
+  /* Light Mode */
+  --bg: #F8FAFC;
+  --surface: #FFFFFF;
+  --surface-hover: #F1F5F9;
+  --border: #E2E8F0;
+  --danger: #EF4444;
+  --warning: #F59E0B;
+  --safe: #10B981;
+  --text-primary: #0F172A;
+  --text-secondary: #64748B;
+}
+
+.dark {
+  /* Soft & Warm Deep Navy/Slate Dark Mode (Avoiding pure black) */
+  --bg: #131B2E;
+  --surface: #1E293B;
+  --surface-hover: #334155;
+  --border: rgba(255, 255, 255, 0.1);
+  --danger: #F87171;
+  --warning: #FBBF24;
+  --safe: #34D399;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+  background-image: radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.04) 0%, transparent 40%),
+                    radial-gradient(circle at 85% 85%, rgba(16, 185, 129, 0.03) 0%, transparent 40%);
+  background-attachment: fixed;
+}
+
+/* Custom Scrollbar Styling integrated with theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+@keyframes borderGlow {
+  0%, 100% {
+    border-color: rgba(248, 113, 113, 0.6);
+    box-shadow: 0 0 15px rgba(248, 113, 113, 0.15);
+  }
+  50% {
+    border-color: rgba(248, 113, 113, 0.2);
+    box-shadow: 0 0 5px rgba(248, 113, 113, 0.05);
+  }
+}
+
+.animate-risk-glow {
+  animation: borderGlow 3s ease-in-out infinite;
+}

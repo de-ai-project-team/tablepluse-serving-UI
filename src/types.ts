@@ -99,7 +99,9 @@ export interface TraceabilityData {
     at: string;
     store_id: string;
     ingredient_id: string;
-    status: 'APPLIED' | 'PENDING' | 'FAILED' | 'GAP';
+    status: 'APPLIED' | 'PENDING' | 'FAILED' | 'GAP' | 'RESOLVED';
+    resolution?: 'later_settlement' | string | null;
+    resolved_by_run_id?: string | null;
     prev_settled_sequence: number | null;
     settled_sequence: number | null;
     settled_quantity: string | null;
@@ -138,6 +140,15 @@ export interface TraceabilityData {
       observed_settled_sequence: number;
       observed_settlement_version: number;
       resolved: boolean;
+      resolution?: 'later_settlement' | string | null;
+      resolved_by_run_id?: string | null;
+    } | null;
+    superseding_settlement?: {
+      run_id: string;
+      settled_sequence: number;
+      settled_quantity: string;
+      settlement_version: number;
+      emitted_at: string;
     } | null;
     outcome: string;
   }>;

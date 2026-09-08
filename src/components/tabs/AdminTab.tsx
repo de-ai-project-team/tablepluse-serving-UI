@@ -208,120 +208,62 @@ export function AdminTab() {
             Observed at: {formatMetricTimestamp(comp.observed_at)} · Window: {comp.window_minutes ?? '—'} min
           </span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <ComponentCard 
-          name="API Gateway" 
-          icon={<Server className="w-6 h-6 text-blue-500" />}
-          info={comp.api_gateway}
-          renderMetrics={(info) => (
-            <>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-text-secondary font-medium">15분 요청</span>
-                <span className="font-bold text-text-primary">{(info?.requests_15m ?? 0).toLocaleString()} 건</span>
-              </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <span className="text-text-secondary font-medium">5xx 오류</span>
-                <span className={`font-bold ${(info?.errors_5xx_15m ?? 0) > 0 ? 'text-red-500' : 'text-text-primary'}`}>
-                  {info?.errors_5xx_15m ?? 0} 건
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <span className="text-text-secondary font-medium">Last request</span>
-                <span className="font-bold text-text-primary text-right">{formatMetricTimestamp(info?.last_request_at)}</span>
-              </div>
-            </>
-          )}
-        />
-
-        <ComponentCard 
-          name="Kinesis Stream" 
-          icon={<Activity className="w-6 h-6 text-purple-500" />}
-          info={comp.kinesis}
-          renderMetrics={(info) => (
-            <>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-text-secondary font-medium">Iterator Age</span>
-                <span className={`font-bold ${(info?.iterator_age_ms ?? 0) > 600000 ? 'text-red-500' : 'text-emerald-500'}`}>
-                  {formatLag(info?.iterator_age_ms)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <span className="text-text-secondary font-medium">Put 실패 (15m)</span>
-                <span className={`font-bold ${(info?.put_failed_15m ?? 0) > 0 ? 'text-red-500' : 'text-text-primary'}`}>
-                  {info?.put_failed_15m ?? 0}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <span className="text-text-secondary font-medium">Incoming records</span>
-                <span className="font-bold text-text-primary">{(info?.incoming_records_15m ?? 0).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <span className="text-text-secondary font-medium">Incoming bytes</span>
-                <span className="font-bold text-text-primary">{(info?.incoming_bytes_15m ?? 0).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <span className="text-text-secondary font-medium">Last activity</span>
-                <span className="font-bold text-text-primary text-right">{formatMetricTimestamp(info?.last_activity_at)}</span>
-              </div>
-            </>
-          )}
-        />
-
-        <ComponentCard 
-          name="Flink Processor" 
-          icon={<RefreshCcw className="w-6 h-6 text-amber-500" />}
-          info={comp.flink}
-          renderMetrics={(info) => (
-            <>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-text-secondary font-medium">Lag Behind</span>
-                <span className={`font-bold ${(info?.millis_behind_latest ?? 0) > 30000 ? 'text-amber-500' : 'text-emerald-500'}`}>
-                  {formatLag(info?.millis_behind_latest)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <span className="text-text-secondary font-medium">다운타임 / 재시작</span>
-                <span className={`font-bold ${(info?.downtime_ms ?? 0) > 0 || (info?.full_restarts_15m ?? 0) > 0 ? 'text-red-500' : 'text-text-primary'}`}>
-                  {info?.downtime_ms ? `${info.downtime_ms}ms` : '0ms'} ({info?.full_restarts_15m ?? 0}회)
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <span className="text-text-secondary font-medium">Last metric</span>
-                <span className="font-bold text-text-primary text-right">{formatMetricTimestamp(info?.last_metric_at)}</span>
-              </div>
-            </>
-          )}
-        />
-
-        <ComponentCard 
-          name="DynamoDB" 
-          icon={<Database className="w-6 h-6 text-emerald-500" />}
-          info={comp.dynamodb}
-          renderMetrics={(info) => (
-            <>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-text-secondary font-medium">Throttled (15m)</span>
-                <span className={`font-bold ${(info?.throttled_15m ?? 0) > 0 ? 'text-amber-500' : 'text-text-primary'}`}>
-                  {info?.throttled_15m ?? 0}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <span className="text-text-secondary font-medium">시스템 오류</span>
-                <span className={`font-bold ${(info?.system_errors_15m ?? 0) > 0 ? 'text-red-500' : 'text-text-primary'}`}>
-                  {info?.system_errors_15m ?? 0}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <span className="text-text-secondary font-medium">CloudWatch writes (15m)</span>
-                <span className="font-bold text-text-primary">{(info?.writes_15m ?? 0).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <span className="text-text-secondary font-medium">Last write metric</span>
-                <span className="font-bold text-text-primary text-right">{formatMetricTimestamp(info?.last_write_metric_at)}</span>
-              </div>
-            </>
-          )}
-        />
+        <div className="flex flex-col lg:flex-row lg:items-stretch gap-3">
+          <ComponentCard
+            name="Kinesis Ingestion"
+            icon={<Activity className="w-6 h-6 text-purple-500" />}
+            info={comp.kinesis}
+            waiting={(comp.kinesis?.status === 'unknown') && (comp.kinesis?.incoming_records_15m ?? 0) === 0 && !comp.kinesis?.last_activity_at}
+            renderMetrics={(info) => (
+              <>
+                <MetricRow label="Incoming records (15m)" value={`${(info?.incoming_records_15m ?? 0).toLocaleString()} 건`} />
+                <MetricRow label="Incoming bytes (15m)" value={`${(info?.incoming_bytes_15m ?? 0).toLocaleString()} bytes`} />
+                <MetricRow label="Last activity" value={formatMetricTimestamp(info?.last_activity_at)} />
+                <MetricRow label="Put 실패 (15m)" value={`${info?.put_failed_15m ?? 0}`} valueClass={(info?.put_failed_15m ?? 0) > 0 ? 'text-red-500' : undefined} />
+              </>
+            )}
+          />
+          <FlowArrow />
+          <ComponentCard
+            name="Firehose → Bronze S3"
+            icon={<Activity className="w-6 h-6 text-orange-500" />}
+            info={comp.firehose}
+            waiting={(comp.firehose?.incoming_records_15m ?? 0) === 0 && (comp.firehose?.delivered_records_15m ?? 0) === 0 && !comp.firehose?.last_delivery_at}
+            renderMetrics={(info) => (
+              <>
+                <MetricRow label="Incoming records (15m)" value={`${(info?.incoming_records_15m ?? 0).toLocaleString()} 건`} />
+                <MetricRow label="Delivered records (15m)" value={`${(info?.delivered_records_15m ?? 0).toLocaleString()} 건`} />
+                <MetricRow label="Delivery success" value={info?.delivery_success === undefined || info?.delivery_success === null ? '최근 전달 없음' : String(info.delivery_success)} valueClass={info?.delivery_success === false ? 'text-red-500' : undefined} />
+                <MetricRow label="Freshness" value={info?.data_freshness_seconds === null || info?.data_freshness_seconds === undefined ? '최근 전달 없음' : `${info.data_freshness_seconds}s`} />
+                <MetricRow label="Last delivery" value={formatMetricTimestamp(info?.last_delivery_at)} />
+              </>
+            )}
+          />
+          <FlowArrow />
+          <ComponentCard
+            name="Flink Processing"
+            icon={<RefreshCcw className="w-6 h-6 text-amber-500" />}
+            info={comp.flink}
+            renderMetrics={(info) => (
+              <>
+                <MetricRow label="Full restarts (15m)" value={`${info?.full_restarts_15m ?? 0} 회`} valueClass={(info?.full_restarts_15m ?? 0) > 0 ? 'text-red-500' : undefined} />
+                <MetricRow label="Downtime" value={`${info?.downtime_ms ?? 0}ms`} valueClass={(info?.downtime_ms ?? 0) > 0 ? 'text-red-500' : undefined} />
+              </>
+            )}
+          />
+          <FlowArrow />
+          <ComponentCard
+            name="DynamoDB Projection"
+            icon={<Database className="w-6 h-6 text-emerald-500" />}
+            info={comp.dynamodb}
+            renderMetrics={(info) => (
+              <>
+                <MetricRow label="Writes (15m)" value={`${(info?.writes_15m ?? 0).toLocaleString()}`} />
+                <MetricRow label="Throttled (15m)" value={`${info?.throttled_15m ?? 0}`} valueClass={(info?.throttled_15m ?? 0) > 0 ? 'text-amber-500' : undefined} />
+                <MetricRow label="System errors" value={`${info?.system_errors_15m ?? 0}`} valueClass={(info?.system_errors_15m ?? 0) > 0 ? 'text-red-500' : undefined} />
+              </>
+            )}
+          />
         </div>
       </div>
 
@@ -640,7 +582,20 @@ WHERE store_id = '${ano.store_id}' AND ingredient_id = '${ano.ingredient_id}'
   );
 }
 
-function ComponentCard({ name, icon, info, renderMetrics }: { name: string; icon: React.ReactNode; info?: ComponentStatusInfo; renderMetrics: (info?: ComponentStatusInfo) => React.ReactNode }) {
+function MetricRow({ label, value, valueClass = 'text-text-primary' }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <div className="flex justify-between items-center gap-3 text-sm">
+      <span className="text-text-secondary font-medium">{label}</span>
+      <span className={`font-bold text-right ${valueClass}`}>{value}</span>
+    </div>
+  );
+}
+
+function FlowArrow() {
+  return <div className="hidden lg:flex items-center justify-center text-blue-500 text-2xl font-bold px-0.5">→</div>;
+}
+
+function ComponentCard({ name, icon, info, waiting = false, renderMetrics }: { name: string; icon: React.ReactNode; info?: ComponentStatusInfo; waiting?: boolean; renderMetrics: (info?: ComponentStatusInfo) => React.ReactNode }) {
   const status = info?.status || 'unknown';
   const isHealthy = status === 'healthy';
   const isWarning = status === 'warning';
@@ -659,6 +614,10 @@ function ComponentCard({ name, icon, info, renderMetrics }: { name: string; icon
     dotColor = 'bg-red-500 animate-pulse';
   }
 
+  if (waiting) {
+    badgeColor = 'bg-slate-500/15 text-slate-400 border-slate-500/30';
+  }
+
   return (
     <div className={`bg-surface border rounded-2xl p-5 flex flex-col justify-between transition-all ${
       isCritical ? 'border-red-500/50 bg-red-500/[0.02]' : isWarning ? 'border-amber-500/50 bg-amber-500/[0.02]' : 'border-border'
@@ -674,7 +633,7 @@ function ComponentCard({ name, icon, info, renderMetrics }: { name: string; icon
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
           <span className={`px-2.5 py-0.5 rounded text-xs font-extrabold uppercase border ${badgeColor}`}>
-            {status}
+            {waiting ? '대기 중' : status}
           </span>
         </div>
         <div className="space-y-1 mt-2">

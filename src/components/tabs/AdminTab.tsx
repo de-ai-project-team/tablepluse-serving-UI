@@ -25,6 +25,19 @@ export function AdminTab() {
       }
       const json: TraceabilityData = await res.json();
       setData(json);
+      setHighlightedRunId(currentRunId => {
+        const timelineRunIds = new Set(
+          (json.settlement_timeline || []).map(item => item.run_id)
+        );
+
+        // Keep the user's selection across refreshes when possible. On the
+        // first response, select the first settlement timeline item.
+        if (currentRunId && timelineRunIds.has(currentRunId)) {
+          return currentRunId;
+        }
+
+        return json.settlement_timeline?.[0]?.run_id || null;
+      });
       setLastSuccessTime(new Date());
       setIsStale(false);
       setError(null);
@@ -130,6 +143,9 @@ export function AdminTab() {
   const recon = data?.reconciliation || { latest_status: 'unknown', latest_window: null, latest_checked_at: new Date().toISOString(), latest_failed_keys: [], recent: {} };
   const timeline = data?.settlement_timeline || [];
   const anomalies = data?.anomaly_recoveries || [];
+  const selectedAnomalies = highlightedRunId
+    ? anomalies.filter(ano => ano.run_id === highlightedRunId)
+    : [];
 
   const getReconStatusBadge = (status: string) => {
     switch (status) {
@@ -305,7 +321,9 @@ export function AdminTab() {
                   <div 
                     key={idx} 
                     onClick={() => scrollToAnomaly(item.run_id)}
-                    className="relative flex items-start gap-4 pl-8 group cursor-pointer"
+                    className={`relative flex items-start gap-4 pl-8 group cursor-pointer ${
+                      highlightedRunId === item.run_id ? 'rounded-xl ring-2 ring-blue-500/30' : ''
+                    }`}
                   >
                     <div className={`absolute left-0 top-1.5 w-3.5 h-3.5 rounded-full border-2 border-surface ${dotColor} shadow-sm`} />
                     <div className="flex-1 bg-background border border-border rounded-xl p-4 shadow-sm hover:border-blue-500/50 transition-all">
@@ -368,11 +386,15 @@ export function AdminTab() {
             최근 anomaly 이벤트의 역추적 및 3단계 자동 보정 흐름
           </p>
 
-          {anomalies.length === 0 ? (
-            <p className="text-text-secondary text-center py-12">최근 감지된 anomaly 이벤트가 없습니다.</p>
+          {selectedAnomalies.length === 0 ? (
+            <p className="text-text-secondary text-center py-12">
+              {highlightedRunId
+                ? '선택한 settlement에 연결된 anomaly 이벤트가 없습니다.'
+                : 'settlement timeline을 선택하면 anomaly 이벤트가 표시됩니다.'}
+            </p>
           ) : (
             <div className="space-y-8">
-              {anomalies.map((ano, idx) => {
+              {selectedAnomalies.map((ano, idx) => {
                 const isUnresolved = ano.outcome === 'unresolved_gap';
                 const isResolved = ano.outcome === 'resolved';
 

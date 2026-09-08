@@ -628,7 +628,7 @@ export function StoreTab() {
                     <span className="text-sm font-bold text-amber-500 text-right">
                       최신 상태 확인 중
                     </span>
-                  ) : purchaseOrder?.status === 'RECEIVED' ? null : purchaseOrder?.status === 'ORDERED' ? (
+                  ) : purchaseOrder?.status === 'ORDERED' ? (
                     <button
                       onClick={() => handleReceive(reorder, purchaseOrder)}
                       disabled={isPending}

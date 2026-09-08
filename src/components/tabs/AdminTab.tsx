@@ -177,9 +177,6 @@ export function AdminTab() {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary tracking-tight">System Traceability</h1>
             {getReconStatusBadge(recon.latest_status)}
-            <span className="text-xs sm:text-sm text-text-secondary font-medium">
-              window {formatTimeOnly(recon.latest_window)} · checked {formatRelativeTime(recon.latest_checked_at)}
-            </span>
           </div>
           <p className="text-sm sm:text-base text-text-secondary mt-1">데이터 파이프라인 상태 모니터링 및 유실 추적 (Targeted Settlement)</p>
           {recon.latest_failed_keys && recon.latest_failed_keys.length > 0 && (

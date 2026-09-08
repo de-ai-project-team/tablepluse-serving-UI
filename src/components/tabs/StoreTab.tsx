@@ -4,6 +4,7 @@ import {
   ShieldAlert, AlertCircle, CheckCircle2, HelpCircle 
 } from 'lucide-react';
 import { DashboardData, PurchaseOrder, ReorderItem, StockoutRisk } from '../../types';
+import { StoreDashboardSkeleton } from '../skeletons/StoreDashboardSkeleton';
 
 // Mock initial API response based on user prompt schema
 const initialMockData: DashboardData = {
@@ -176,17 +177,7 @@ export function StoreTab() {
   }, []);
 
   if (isInitialLoading) {
-    return (
-      <div className="max-w-7xl mx-auto space-y-8 p-6">
-        <div className="h-10 w-80 bg-border/40 animate-pulse rounded-lg" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[1, 2, 3].map(item => (
-            <div key={item} className="h-40 bg-surface border border-border rounded-2xl animate-pulse" />
-          ))}
-        </div>
-        <div className="h-56 bg-surface border border-border rounded-2xl animate-pulse" />
-      </div>
-    );
+    return <StoreDashboardSkeleton />;
   }
 
   if (!data) {

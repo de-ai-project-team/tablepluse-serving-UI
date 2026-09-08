@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, Database, Server, RefreshCcw, SearchCode, AlertTriangle, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { TraceabilityData, ComponentStatusInfo } from '../../types';
+import { TraceabilitySkeleton } from '../skeletons/TraceabilitySkeleton';
 
 export function AdminTab() {
   const [data, setData] = useState<TraceabilityData | null>(null);
@@ -110,22 +111,7 @@ export function AdminTab() {
   };
 
   if (isLoading && !data) {
-    return (
-      <div className="max-w-7xl mx-auto space-y-8 p-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <div className="h-8 w-64 bg-border/40 animate-pulse rounded-lg" />
-            <div className="h-4 w-48 bg-border/30 animate-pulse rounded-lg" />
-          </div>
-          <div className="h-10 w-32 bg-border/40 animate-pulse rounded-full" />
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-36 bg-surface border border-border rounded-2xl animate-pulse" />
-          ))}
-        </div>
-      </div>
-    );
+    return <TraceabilitySkeleton />;
   }
 
   if (error && !data) {

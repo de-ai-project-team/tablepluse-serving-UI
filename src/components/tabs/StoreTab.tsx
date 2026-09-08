@@ -433,7 +433,7 @@ export function StoreTab() {
                 <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
                   (sales.recent_order_count_5m ?? 0) > 0 ? 'bg-emerald-500/15 text-emerald-500' : 'bg-slate-500/15 text-slate-400'
                 }`}>
-                  {(sales.recent_order_count_5m ?? 0) > 0 ? '실시간 활기' : '정체'}
+                  {(sales.recent_order_count_5m ?? 0) > 0 ? '최근 주문 있음' : '최근 주문 없음'}
                 </span>
               </div>
               <div className="flex items-baseline gap-2">

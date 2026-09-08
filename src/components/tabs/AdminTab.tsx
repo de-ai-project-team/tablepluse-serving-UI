@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Database, Server, RefreshCcw, SearchCode, AlertTriangle, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
-import { TraceabilityData, ComponentStatusInfo } from '../../types';
+import { TraceabilityData, ComponentStatusInfo, BatchInfo, BronzeS3Info } from '../../types';
 import { TraceabilitySkeleton } from '../skeletons/TraceabilitySkeleton';
+import { PipelineArchitectureMap } from '../admin/PipelineArchitectureMap';
+import { PipelineNodeId } from '../../lib/traceabilityAdapter';
 
 export function AdminTab() {
+  type SelectedComponent = PipelineNodeId;
   const [data, setData] = useState<TraceabilityData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -11,6 +14,7 @@ export function AdminTab() {
   const lastSuccessTimeRef = useRef<Date>(new Date());
   const [isStale, setIsStale] = useState<boolean>(false);
   const [highlightedRunId, setHighlightedRunId] = useState<string | null>(null);
+  const [selectedComponent, setSelectedComponent] = useState<SelectedComponent>('restaurant-events-kinesis');
 
   const fetchTraceability = async (isManual = false) => {
     if (isManual) setIsRefreshing(true);
@@ -56,7 +60,7 @@ export function AdminTab() {
     fetchTraceability(false);
     const interval = setInterval(() => {
       fetchTraceability(false);
-    }, 30000); // 30s polling
+    }, 10000); // 10s polling
 
     const staleCheck = setInterval(() => {
       if (Date.now() - lastSuccessTimeRef.current.getTime() > 60000) {
@@ -128,26 +132,6 @@ export function AdminTab() {
     }
   };
 
-  if (isLoading && !data) {
-    return <TraceabilitySkeleton />;
-  }
-
-  if (error && !data) {
-    return (
-      <div className="max-w-4xl mx-auto py-16 text-center space-y-6">
-        <div className="w-16 h-16 bg-danger/10 text-danger rounded-full flex items-center justify-center mx-auto text-2xl font-bold">!</div>
-        <h2 className="text-2xl font-bold text-text-primary">System Traceability 로드 실패</h2>
-        <p className="text-text-secondary">{error}</p>
-        <button
-          onClick={() => fetchTraceability(true)}
-          className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-sm"
-        >
-          재시도
-        </button>
-      </div>
-    );
-  }
-
   const comp = data?.components || {};
   const recon = data?.reconciliation || { latest_status: 'unknown', latest_window: null, latest_checked_at: new Date().toISOString(), latest_failed_keys: [], recent: {} };
   const timeline = data?.settlement_timeline || [];
@@ -155,6 +139,8 @@ export function AdminTab() {
   const selectedAnomalies = highlightedRunId
     ? anomalies.filter(ano => ano.run_id === highlightedRunId)
     : [];
+  const bronzeS3 = data?.bronze_s3;
+  const batch = data?.batch;
 
   const getReconStatusBadge = (status: string) => {
     switch (status) {
@@ -210,8 +196,16 @@ export function AdminTab() {
         </div>
       </div>
 
-      {/* 2. Component Status Cards (4 cards) */}
-      <div className="space-y-3">
+      <PipelineArchitectureMap data={data} selectedNodeId={selectedComponent} onSelectNode={setSelectedComponent} highlightedRunId={highlightedRunId} onSelectRecoveryRun={setHighlightedRunId} />
+      {error && (
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+          <span className="text-amber-600">{data ? '최신 상태 확인 실패 · 기존 topology와 데이터를 유지하고 있습니다.' : `데이터 로드 실패 · ${error}`}</span>
+          <button type="button" onClick={() => fetchTraceability(true)} className="shrink-0 font-bold text-amber-700 underline">재시도</button>
+        </div>
+      )}
+
+      {/* Legacy component cards retained in source only for compatibility; the architecture cards above are the active UI. */}
+      <div className="hidden">
         <div className="flex items-center justify-between flex-wrap gap-2 px-1 text-xs font-bold text-text-secondary">
           <span>CloudWatch operational activity</span>
           <span>Observed at: {formatMetricTimestamp(comp.observed_at)}</span>
@@ -275,6 +269,9 @@ export function AdminTab() {
         </div>
       </div>
 
+      {false && selectedComponent === 'reconciliation' && (
+      <details className="bg-surface border border-border rounded-2xl shadow-sm" open={false}>
+        <summary className="cursor-pointer list-none p-6 font-bold text-text-primary">전체 Settlement Timeline / Anomaly Tracker 보기</summary>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* 3. 5-Min Settlement Timeline */}
         <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 shadow-sm col-span-1">
@@ -537,10 +534,10 @@ WHERE store_id = '${ano.store_id}' AND ingredient_id = '${ano.ingredient_id}'
                         )}
                       />
 
-                      {/* Step 3: Apply */}
+                      {/* Step 3: Settlement published → Flink applied → ReVerify */}
                       <StepBox 
                         stepNumber={3}
-                        title="Apply → DynamoDB Realtime State"
+                        title="Settlement Published → Flink Applied → ReVerify"
                         status={ano.step3_apply ? (ano.step3_apply.resolved ? 'complete' : 'warning') : 'pending'}
                         content={ano.step3_apply ? (
                           <div className="space-y-3">
@@ -568,14 +565,16 @@ WHERE store_id = '${ano.store_id}' AND ingredient_id = '${ano.ingredient_id}'
                                 </p>
                               </div>
                             </div>
-                            <pre className="bg-[#0f1115] border border-[#22252B] rounded-xl p-4 text-xs font-mono text-gray-300 overflow-x-auto shadow-sm">
-                              <code>{`UpdateItem({
-  TableName: "inventory_realtime_state",
-  Key: { PK: "STORE#${ano.store_id}", SK: "INGREDIENT#${ano.ingredient_id}" },
-  UpdateExpression: "SET settled_sequence = :s, settlement_version = :v",
-  ExpressionAttributeValues: { ":s": ${ano.step3_apply.expected_settled_sequence}, ":v": ${ano.step3_apply.expected_settlement_version} }
-});`}</code>
-                            </pre>
+                            <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-xs">
+                              <div className="flex flex-wrap items-center gap-2 font-bold text-text-primary">
+                                <span>Settlement published</span><span className="text-blue-400">→</span>
+                                <span>Settlement Kinesis</span><span className="text-blue-400">→</span>
+                                <span>Flink applied</span><span className="text-blue-400">→</span>
+                                <span>DynamoDB updated</span><span className="text-blue-400">→</span>
+                                <span className="text-emerald-500">ReVerify {ano.step3_apply.resolved ? 'PASS' : 'pending'}</span>
+                              </div>
+                              <p className="mt-2 text-text-secondary">Reconciliation은 settlement event를 발행하고, Flink가 이를 적용한 뒤 DynamoDB realtime state가 갱신됩니다.</p>
+                            </div>
                           </div>
                         ) : (
                           <p className="text-xs text-text-secondary italic">Flink 반영 대기 중</p>
@@ -589,6 +588,8 @@ WHERE store_id = '${ano.store_id}' AND ingredient_id = '${ano.ingredient_id}'
           )}
         </div>
       </div>
+      </details>
+      )}
     </div>
   );
 }
@@ -604,6 +605,137 @@ function MetricRow({ label, value, valueClass = 'text-text-primary' }: { label: 
 
 function FlowArrow() {
   return <div className="hidden lg:flex items-center justify-center text-blue-500 text-2xl font-bold px-0.5">→</div>;
+}
+
+function normalizeComponentStatus(
+  status: string | null | undefined,
+  fallback: ComponentStatusInfo['status'] = 'unknown'
+): ComponentStatusInfo['status'] {
+  const normalized = status?.toLowerCase();
+  if (normalized === 'healthy' || normalized === 'running' || normalized === 'succeeded' || normalized === 'success') return 'healthy';
+  if (normalized === 'warning' || normalized === 'pending' || normalized === 'in_progress') return 'warning';
+  if (normalized === 'critical' || normalized === 'failed' || normalized === 'failure' || normalized === 'error') return 'critical';
+  if (normalized === 'unknown') return 'unknown';
+  return fallback;
+}
+
+function OpsCard({ title, subtitle, info, selected, onClick, summary, secondary }: {
+  title: string;
+  subtitle?: string;
+  info?: ComponentStatusInfo;
+  selected: boolean;
+  onClick: () => void;
+  summary: string;
+  secondary?: string;
+}) {
+  const status = info?.status || 'unknown';
+  const normalizedStatus = status.toLowerCase();
+  const statusColor = normalizedStatus === 'healthy' || normalizedStatus === 'running'
+    ? 'text-emerald-500 bg-emerald-500/15 border-emerald-500/30'
+    : normalizedStatus === 'warning'
+      ? 'text-amber-500 bg-amber-500/15 border-amber-500/30'
+      : normalizedStatus === 'critical'
+        ? 'text-red-500 bg-red-500/15 border-red-500/30'
+        : 'text-slate-400 bg-slate-500/15 border-slate-500/30';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left bg-surface border rounded-2xl p-5 shadow-sm transition-all hover:border-blue-500/60 focus:outline-none focus:ring-2 focus:ring-blue-500/30 ${selected ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-border'}`}
+    >
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h3 className="font-bold text-lg text-text-primary">{title}</h3>
+          {subtitle && <p className="text-xs text-text-secondary mt-1">{subtitle}</p>}
+        </div>
+        <span className={`px-2.5 py-1 rounded-md border text-xs font-extrabold uppercase ${statusColor}`}>
+          {status}
+        </span>
+      </div>
+      <p className="text-sm font-bold text-text-primary truncate">{summary}</p>
+      {secondary && <p className="text-xs text-text-secondary mt-2 truncate">{secondary}</p>}
+    </button>
+  );
+}
+
+function SelectedComponentPanel({ selectedComponent, bronzeS3, batch, components }: {
+  selectedComponent: 'kinesis' | 'firehose' | 'bronze_s3' | 'flink' | 'dynamodb' | 'batch' | 'reconciliation';
+  bronzeS3?: BronzeS3Info;
+  batch?: BatchInfo;
+  components: TraceabilityData['components'];
+}) {
+  const title = {
+    kinesis: 'Kinesis 수신',
+    firehose: 'Kinesis → Firehose → Bronze S3 전달',
+    bronze_s3: 'Firehose → Bronze S3 저장 확인',
+    flink: 'Kinesis / Settlement → Managed Flink → DynamoDB',
+    dynamodb: 'Flink → DynamoDB realtime serving projection',
+    batch: 'Silver ETL → Periodic Gold → Published serving',
+    reconciliation: 'Reconciliation 상세'
+  }[selectedComponent];
+
+  return (
+    <div className="bg-surface border border-blue-500/30 rounded-2xl p-6 shadow-sm">
+      <h3 className="font-bold text-lg text-text-primary mb-4">{title}</h3>
+      {selectedComponent === 'kinesis' && <DetailRows rows={[
+        ['Incoming records', `${(components.kinesis?.incoming_records_15m ?? 0).toLocaleString()}`],
+        ['Incoming bytes', `${(components.kinesis?.incoming_bytes_15m ?? 0).toLocaleString()} B`],
+        ['Put failures', `${components.kinesis?.put_failed_15m ?? 0}`],
+        ['Last activity', formatPanelTime(components.kinesis?.last_activity_at)]
+      ]} />}
+      {selectedComponent === 'firehose' && <DetailRows rows={[
+        ['Incoming records', `${(components.firehose?.incoming_records_15m ?? 0).toLocaleString()}`],
+        ['Delivered records', `${(components.firehose?.delivered_records_15m ?? 0).toLocaleString()}`],
+        ['Delivery success', components.firehose?.delivery_success == null ? '최근 전달 없음' : String(components.firehose.delivery_success)],
+        ['Freshness', components.firehose?.data_freshness_seconds == null ? '최근 전달 없음' : `${components.firehose.data_freshness_seconds} sec`],
+        ['Last delivery', formatPanelTime(components.firehose?.last_delivery_at)]
+      ]} />}
+      {selectedComponent === 'bronze_s3' && <DetailRows rows={[
+        ['Lookback', bronzeS3?.lookback_hours == null ? '—' : `${bronzeS3.lookback_hours} hours`],
+        ['Last object', formatPanelTime(bronzeS3?.last_object_at)],
+        ['Object size', bronzeS3?.last_object_size_bytes == null ? '—' : `${bronzeS3.last_object_size_bytes.toLocaleString()} bytes`],
+        ['Object key', bronzeS3?.last_object_key || '최근 object 없음'],
+        ['Error', bronzeS3?.error || '없음']
+      ]} />}
+      {selectedComponent === 'flink' && <DetailRows rows={[
+        ['Status', components.flink?.status || 'unknown'],
+        ['Lag', components.flink?.millis_behind_latest == null ? 'No recent datapoint' : `${components.flink.millis_behind_latest} ms`],
+        ['Full restarts (15m)', `${components.flink?.full_restarts_15m ?? 0}`],
+        ['Downtime', `${components.flink?.downtime_ms ?? 0} ms`]
+      ]} />}
+      {selectedComponent === 'dynamodb' && <DetailRows rows={[
+        ['Status', components.dynamodb?.status || 'unknown'],
+        ['Writes (15m)', `${(components.dynamodb?.writes_15m ?? 0).toLocaleString()}`],
+        ['Throttled (15m)', `${components.dynamodb?.throttled_15m ?? 0}`],
+        ['System errors', `${components.dynamodb?.system_errors_15m ?? 0}`]
+      ]} />}
+      {selectedComponent === 'batch' && <DetailRows rows={[
+        ['Status', batch?.status || 'unknown'],
+        ['Last execution', batch?.last_execution?.execution_id || '최근 실행 없음'],
+        ['Target date', batch?.last_execution?.target_date || '—'],
+        ['Finished', formatPanelTime(batch?.last_execution?.finished_at)],
+        ['Error', batch?.last_execution?.error || '없음']
+      ]} />}
+      {selectedComponent === 'reconciliation' && <p className="text-sm text-text-secondary">아래 Settlement Timeline과 Anomaly Recovery에서 상세 내역을 확인할 수 있습니다.</p>}
+    </div>
+  );
+}
+
+function formatPanelTime(value?: string | null) {
+  if (!value) return 'No recent datapoint';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'No recent datapoint';
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+}
+
+function DetailRows({ rows }: { rows: Array<[string, string]> }) {
+  return <div className="space-y-2">{rows.map(([label, value]) => (
+    <div key={label} className="flex justify-between gap-4 text-sm border-b border-border/60 pb-2 last:border-0">
+      <span className="text-text-secondary font-medium">{label}</span>
+      <span className="text-text-primary font-bold text-right break-all">{value}</span>
+    </div>
+  ))}</div>;
 }
 
 function ComponentCard({ name, icon, info, waiting = false, renderMetrics }: { name: string; icon: React.ReactNode; info?: ComponentStatusInfo; waiting?: boolean; renderMetrics: (info?: ComponentStatusInfo) => React.ReactNode }) {

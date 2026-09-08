@@ -77,3 +77,35 @@ body {
 .animate-risk-glow {
   animation: borderGlow 3s ease-in-out infinite;
 }
+
+.pipeline-map .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+}
+
+.pipeline-map .react-flow__controls-button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.pipeline-map .react-flow__controls-button:last-child {
+  border-bottom: 0;
+}
+
+.pipeline-map .react-flow__controls-button:hover {
+  background: var(--surface-hover);
+}
+
+.pipeline-map .react-flow__controls-button svg {
+  max-width: 16px;
+  max-height: 16px;
+  fill: var(--text-primary);
+  stroke: var(--text-primary);
+}

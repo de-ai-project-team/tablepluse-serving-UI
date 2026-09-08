@@ -4,6 +4,7 @@ export type StockoutRisk = 'OUT_OF_STOCK' | 'CRITICAL' | 'HIGH' | 'NORMAL' | 'UN
 export type DataQuality = 'ok' | 'degraded';
 
 export interface IngredientItem {
+  ingredient_id: string;
   ingredient_name: string;
   current_quantity: number;
   unit: string;
@@ -22,13 +23,25 @@ export interface MenuItem {
 }
 
 export interface ReorderItem {
+  ingredient_id: string;
   ingredient_name: string;
   recommended_quantity: number;
   unit: string;
   recommended_order_at: string;
 }
 
+export type PurchaseOrderStatus = 'ORDERED' | 'RECEIVED';
+
+export interface PurchaseOrder {
+  purchase_order_id: string;
+  ingredient_id: string;
+  ordered_quantity: string;
+  status: PurchaseOrderStatus;
+  received_at: string | null;
+}
+
 export interface DashboardData {
+  store_id: string;
   store_name: string;
   updated_at: string;
   sales: {
@@ -39,6 +52,7 @@ export interface DashboardData {
   menus: MenuItem[];
   ingredients: IngredientItem[];
   reorder: ReorderItem[];
+  purchase_orders: PurchaseOrder[];
   _meta?: {
     ingredients_settled: number;
     ingredients_total: number;

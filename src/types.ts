@@ -70,7 +70,18 @@ export interface ComponentStatusInfo {
   status: 'healthy' | 'warning' | 'critical' | 'unknown';
   requests_15m?: number;
   errors_5xx_15m?: number;
+  iterator_age_ms?: number | null;
   put_failed_15m?: number;
+  firehose_read_records_15m?: number;
+  firehose_read_bytes_15m?: number;
+  flink_read_records_15m?: number;
+  flink_read_bytes_15m?: number;
+  millis_behind_latest?: number | null;
+  events_millis_behind_latest?: number | null;
+  settlement_millis_behind_latest?: number | null;
+  source_records_15m?: number;
+  source_bytes_15m?: number;
+  last_source_activity_at?: string | null;
   full_restarts_15m?: number;
   downtime_ms?: number | null;
   throttled_15m?: number;
@@ -78,11 +89,63 @@ export interface ComponentStatusInfo {
   incoming_records_15m?: number;
   incoming_bytes_15m?: number;
   last_activity_at?: string | null;
+  last_request_at?: string | null;
+  last_metric_at?: string | null;
   delivered_records_15m?: number;
-  delivery_success?: boolean | string | null;
+  delivery_success?: number | boolean | string | null;
   data_freshness_seconds?: number | null;
   last_delivery_at?: string | null;
   writes_15m?: number;
+  last_write_metric_at?: string | null;
+}
+
+export interface BronzeS3Info {
+  status?: 'healthy' | 'warning' | 'critical' | 'unknown' | string;
+  lookback_hours?: number | null;
+  last_object_at?: string | null;
+  last_object_key?: string | null;
+  last_object_size_bytes?: number | null;
+  error?: string | null;
+}
+
+export interface BatchPhase {
+  phase?: string;
+  status?: string;
+  processing_run_id?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  duration_seconds?: number | null;
+  target_date?: string | null;
+  counts?: Record<string, number> | null;
+  error?: string | null;
+}
+
+export interface BatchExecution {
+  execution_id?: string;
+  status?: string;
+  target_date?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  processing_run_ids?: string[];
+  phases?: BatchPhase[];
+  error?: string | null;
+}
+
+export interface BatchInfo {
+  status?: string;
+  last_execution?: BatchExecution | null;
+  last_successful_execution?: BatchExecution | null;
+  last_failed_execution?: BatchExecution | null;
+  recent_executions?: BatchExecution[];
+}
+
+export interface ServingStateInfo {
+  status?: string;
+  store_id?: string;
+  observed_at?: string | null;
+  inventory?: Record<string, unknown>;
+  sales?: Record<string, unknown>;
+  menu?: Record<string, unknown>;
 }
 
 export interface TraceabilityData {
@@ -91,21 +154,25 @@ export interface TraceabilityData {
     window_minutes?: number | null;
     api_gateway?: ComponentStatusInfo;
     kinesis?: ComponentStatusInfo;
+    settlement_kinesis?: ComponentStatusInfo;
     firehose?: ComponentStatusInfo;
     flink?: ComponentStatusInfo;
     dynamodb?: ComponentStatusInfo;
     error?: string;
   };
+  bronze_s3?: BronzeS3Info;
+  batch?: BatchInfo;
+  serving_state?: ServingStateInfo;
   reconciliation: {
     latest_status: 'PASS' | 'FAIL' | 'INCONCLUSIVE' | 'unknown';
     latest_window: string | null;
-    latest_checked_at: string;
+    latest_checked_at: string | null;
     latest_failed_keys: string[];
     recent: Record<string, number>;
   };
   settlement_timeline: Array<{
     run_id: string;
-    at: string;
+    at: string | null;
     store_id: string;
     ingredient_id: string;
     status: 'APPLIED' | 'PENDING' | 'FAILED' | 'GAP' | 'RESOLVED';
@@ -124,7 +191,7 @@ export interface TraceabilityData {
     detected_at: string;
     store_id: string;
     ingredient_id: string;
-    window_start: string;
+    window_start: string | null;
     anomaly_type: string;
     escalate: boolean;
     step1_detect: {

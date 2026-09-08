@@ -3,10 +3,11 @@ import {
   AlertTriangle, Check, Clock, PackageSearch, RefreshCw, TrendingUp, 
   ShieldAlert, AlertCircle, CheckCircle2, HelpCircle 
 } from 'lucide-react';
-import { DashboardData, StockoutRisk } from '../../types';
+import { DashboardData, PurchaseOrder, ReorderItem, StockoutRisk } from '../../types';
 
 // Mock initial API response based on user prompt schema
 const initialMockData: DashboardData = {
+  store_id: "STORE-001",
   store_name: "테스트 매장 (강남점)",
   updated_at: new Date().toISOString(),
   sales: {
@@ -23,6 +24,7 @@ const initialMockData: DashboardData = {
   ],
   ingredients: [
     {
+      ingredient_id: "ING-001",
       ingredient_name: "닭가슴살",
       current_quantity: 24800,
       unit: "g",
@@ -33,6 +35,7 @@ const initialMockData: DashboardData = {
       stockout_risk: "HIGH"
     },
     {
+      ingredient_id: "ING-002",
       ingredient_name: "소고기 등심",
       current_quantity: 4500,
       unit: "g",
@@ -43,6 +46,7 @@ const initialMockData: DashboardData = {
       stockout_risk: "CRITICAL"
     },
     {
+      ingredient_id: "ING-003",
       ingredient_name: "후레쉬 아보카도",
       current_quantity: 8200,
       unit: "g",
@@ -53,6 +57,7 @@ const initialMockData: DashboardData = {
       stockout_risk: "NORMAL"
     },
     {
+      ingredient_id: "ING-004",
       ingredient_name: "모짜렐라 치즈",
       current_quantity: 0,
       unit: "g",
@@ -63,6 +68,7 @@ const initialMockData: DashboardData = {
       stockout_risk: "OUT_OF_STOCK"
     },
     {
+      ingredient_id: "ING-005",
       ingredient_name: "양상추 / 베이비채소",
       current_quantity: 35000,
       unit: "g",
@@ -75,34 +81,57 @@ const initialMockData: DashboardData = {
   ],
   reorder: [
     {
+      ingredient_id: "ING-002",
       ingredient_name: "소고기 등심",
       recommended_quantity: 12000,
       unit: "g",
       recommended_order_at: new Date(Date.now() + 30 * 60 * 1000).toISOString()
     },
     {
+      ingredient_id: "ING-001",
       ingredient_name: "닭가슴살",
       recommended_quantity: 15000,
       unit: "g",
       recommended_order_at: new Date(Date.now() + 90 * 60 * 1000).toISOString()
     },
     {
+      ingredient_id: "ING-004",
       ingredient_name: "모짜렐라 치즈",
       recommended_quantity: 10000,
       unit: "g",
       recommended_order_at: new Date(Date.now() - 10 * 60 * 1000).toISOString()
     }
-  ]
+  ],
+  purchase_orders: []
 };
 
 export function StoreTab() {
-  const [data, setData] = useState<DashboardData>(initialMockData);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isDashboardStatusAvailable, setIsDashboardStatusAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [pendingActions, setPendingActions] = useState<Record<string, boolean>>({});
+
+  const setPendingAction = (ingredientId: string, pending: boolean) => {
+    setPendingActions(prev => ({
+      ...prev,
+      [ingredientId]: pending
+    }));
+  };
+
+  const readErrorMessage = async (res: Response, fallback: string) => {
+    try {
+      const body = await res.json();
+      return body?.message || body?.error || fallback;
+    } catch {
+      return fallback;
+    }
+  };
 
   // Real REST API GET /dashboard with 15s polling and no-store
-  const fetchDashboardData = async (isManual = false) => {
+  const fetchDashboardData = async (isManual = false): Promise<boolean> => {
     if (isManual) setIsLoading(true);
     try {
       const res = await fetch('/api/dashboard', {
@@ -115,14 +144,26 @@ export function StoreTab() {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
       const json: DashboardData = await res.json();
+
+      // purchase_orders is required to safely render an action button.
+      // Do not treat a missing field as an empty list.
+      setIsDashboardStatusAvailable(Array.isArray(json.purchase_orders));
       setData(json);
       setLastRefreshed(new Date());
-      setError(null);
+      setError(
+        Array.isArray(json.purchase_orders)
+          ? null
+          : '발주 상태 확인 중입니다. Dashboard 응답을 기다려주세요.'
+      );
+      return true;
     } catch (err) {
       console.error("Dashboard fetch error:", err);
-      setError("연결 불안정 (마지막 성공 데이터 표시 중)");
+      setIsDashboardStatusAvailable(false);
+      setError("최신 상태 확인 중입니다. 잠시 후 다시 시도해주세요.");
+      return false;
     } finally {
       if (isManual) setIsLoading(false);
+      setIsInitialLoading(false);
     }
   };
 
@@ -133,6 +174,38 @@ export function StoreTab() {
     }, 15000);
     return () => clearInterval(interval);
   }, []);
+
+  if (isInitialLoading) {
+    return (
+      <div className="max-w-7xl mx-auto space-y-8 p-6">
+        <div className="h-10 w-80 bg-border/40 animate-pulse rounded-lg" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[1, 2, 3].map(item => (
+            <div key={item} className="h-40 bg-surface border border-border rounded-2xl animate-pulse" />
+          ))}
+        </div>
+        <div className="h-56 bg-surface border border-border rounded-2xl animate-pulse" />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="max-w-4xl mx-auto py-16 text-center space-y-5">
+        <h2 className="text-2xl font-bold text-text-primary">대시보드 로드 실패</h2>
+        <p className="text-text-secondary">
+          {error || '최신 상태를 확인할 수 없습니다.'}
+        </p>
+        <button
+          onClick={() => fetchDashboardData(true)}
+          disabled={isLoading}
+          className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50"
+        >
+          다시 시도
+        </button>
+      </div>
+    );
+  }
 
   // Helper for risk badge styling and icon
   const getRiskBadgeConfig = (risk: StockoutRisk) => {
@@ -155,6 +228,7 @@ export function StoreTab() {
   const menus = data?.menus || [];
   const ingredients = data?.ingredients || [];
   const reorder = data?.reorder || [];
+  const purchaseOrders = data?.purchase_orders || [];
 
   function needData(val: any, formatter?: (v: any) => string) {
     if (val === null || val === undefined || val === '' || Number.isNaN(val)) {
@@ -179,9 +253,98 @@ export function StoreTab() {
   // Filter reorder items (위험도 HIGH 이상 재료만)
   const highRiskIngredients = ['OUT_OF_STOCK', 'CRITICAL', 'HIGH'];
   const filteredReorderItems = reorder.filter(item => {
-    const matchedIng = ingredients.find(ing => ing.ingredient_name === item.ingredient_name);
+    const matchedIng = ingredients.find(ing => ing.ingredient_id === item.ingredient_id);
     return matchedIng && highRiskIngredients.includes(matchedIng.stockout_risk);
   });
+
+  function getPurchaseOrder(reorderItem: ReorderItem): PurchaseOrder | undefined {
+    return purchaseOrders.find(po => po.ingredient_id === reorderItem.ingredient_id);
+  }
+
+  async function handleOrderApproval(reorderItem: ReorderItem) {
+    const ingredientId = reorderItem.ingredient_id;
+    const idempotencyKey =
+      `reorder-${data.store_id}-${ingredientId}-${reorderItem.recommended_order_at}`;
+
+    setPendingAction(ingredientId, true);
+
+    try {
+      const res = await fetch(
+        `/api/stores/${data.store_id}/purchase-orders`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': idempotencyKey
+          },
+          body: JSON.stringify({
+            items: [
+              {
+                ingredient_id: ingredientId,
+                quantity: String(reorderItem.recommended_quantity)
+              }
+            ]
+          })
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, '발주 요청에 실패했습니다.'));
+      }
+
+      const result = await res.json();
+      if (!result?.purchase_order_id) {
+        throw new Error('발주 응답에 purchase_order_id가 없습니다.');
+      }
+
+      // The server response is acknowledged, but ORDERED is confirmed only
+      // by the following Dashboard refresh.
+      await fetchDashboardData();
+    } catch (err) {
+      console.error('Purchase order request error:', err);
+      setError(err instanceof Error ? err.message : '발주 요청에 실패했습니다.');
+    } finally {
+      setPendingAction(ingredientId, false);
+    }
+  }
+
+  async function handleReceive(reorderItem: ReorderItem, purchaseOrder: PurchaseOrder) {
+    const ingredientId = reorderItem.ingredient_id;
+    const idempotencyKey =
+      `receive-${data.store_id}-${purchaseOrder.purchase_order_id}`;
+
+    setPendingAction(ingredientId, true);
+
+    try {
+      const res = await fetch(
+        `/api/stores/${data.store_id}/purchase-orders/${purchaseOrder.purchase_order_id}/receive`,
+        {
+          method: 'POST',
+          headers: {
+            'Idempotency-Key': idempotencyKey
+          }
+        }
+      );
+
+      if (res.status === 409) {
+        // An already-received PO is reconciled from Dashboard, not treated as
+        // a terminal UI error.
+        await fetchDashboardData();
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, '입고 처리에 실패했습니다.'));
+      }
+
+      await fetchDashboardData();
+    } catch (err) {
+      console.error('Purchase order receive error:', err);
+      setError(err instanceof Error ? err.message : '입고 처리에 실패했습니다.');
+    } finally {
+      setPendingAction(ingredientId, false);
+    }
+  }
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 pb-12">
@@ -220,8 +383,15 @@ export function StoreTab() {
       </div>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-500 p-4 rounded-2xl text-center font-bold">
-          {error}
+        <div className="bg-red-500/10 border border-red-500/30 text-red-500 p-4 rounded-2xl text-center font-bold flex items-center justify-center gap-3 flex-wrap">
+          <span>{error}</span>
+          <button
+            onClick={() => fetchDashboardData(true)}
+            disabled={isLoading}
+            className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-sm hover:bg-red-600 disabled:opacity-50"
+          >
+            다시 시도
+          </button>
         </div>
       )}
 
@@ -430,12 +600,19 @@ export function StoreTab() {
               <PackageSearch className="w-6 h-6 text-red-500" />
               4. 긴급 발주 추천 (위험도 HIGH 이상)
             </h2>
+            {isLoading && (
+              <span className="text-sm font-bold text-blue-500">최신 상태 확인 중...</span>
+            )}
           </div>
 
           {filteredReorderItems.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredReorderItems.map((reorder) => (
-                <div key={reorder.ingredient_name} className="bg-surface border border-red-500/30 rounded-2xl p-6 shadow-md flex items-center justify-between gap-4">
+              {filteredReorderItems.map((reorder) => {
+                const purchaseOrder = getPurchaseOrder(reorder);
+                const isPending = pendingActions[reorder.ingredient_id] === true;
+
+                return (
+                <div key={reorder.ingredient_id} className="bg-surface border border-red-500/30 rounded-2xl p-6 shadow-md flex items-center justify-between gap-4">
                   <div className="space-y-1">
                     <span className="text-xs font-bold px-2 py-0.5 rounded bg-red-500/15 text-red-500">발주 시급</span>
                     <h3 className="text-xl font-bold text-text-primary">{reorder.ingredient_name}</h3>
@@ -447,11 +624,30 @@ export function StoreTab() {
                     </p>
                   </div>
 
-                  <button className="bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-3 rounded-xl shadow-md transition-transform active:scale-95 shrink-pointer">
-                    발주 승인
-                  </button>
+                  {!isDashboardStatusAvailable ? (
+                    <span className="text-sm font-bold text-amber-500 text-right">
+                      최신 상태 확인 중
+                    </span>
+                  ) : purchaseOrder?.status === 'RECEIVED' ? null : purchaseOrder?.status === 'ORDERED' ? (
+                    <button
+                      onClick={() => handleReceive(reorder, purchaseOrder)}
+                      disabled={isPending}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold px-5 py-3 rounded-xl shadow-md transition-transform active:scale-95 shrink-pointer"
+                    >
+                      {isPending ? '입고 처리 중...' : '입고완료'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleOrderApproval(reorder)}
+                      disabled={isPending}
+                      className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold px-5 py-3 rounded-xl shadow-md transition-transform active:scale-95 shrink-pointer"
+                    >
+                      {isPending ? '발주 중...' : '발주 승인'}
+                    </button>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="bg-surface border border-border rounded-2xl p-12 text-center text-text-secondary font-medium">

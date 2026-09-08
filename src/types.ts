@@ -70,20 +70,19 @@ export interface ComponentStatusInfo {
   status: 'healthy' | 'warning' | 'critical' | 'unknown';
   requests_15m?: number;
   errors_5xx_15m?: number;
-  iterator_age_ms?: number | null;
   put_failed_15m?: number;
-  millis_behind_latest?: number | null;
   full_restarts_15m?: number;
   downtime_ms?: number | null;
   throttled_15m?: number;
   system_errors_15m?: number;
-  last_request_at?: string | null;
   incoming_records_15m?: number;
   incoming_bytes_15m?: number;
   last_activity_at?: string | null;
-  last_metric_at?: string | null;
+  delivered_records_15m?: number;
+  delivery_success?: boolean | string | null;
+  data_freshness_seconds?: number | null;
+  last_delivery_at?: string | null;
   writes_15m?: number;
-  last_write_metric_at?: string | null;
 }
 
 export interface TraceabilityData {
@@ -92,6 +91,7 @@ export interface TraceabilityData {
     window_minutes?: number | null;
     api_gateway?: ComponentStatusInfo;
     kinesis?: ComponentStatusInfo;
+    firehose?: ComponentStatusInfo;
     flink?: ComponentStatusInfo;
     dynamodb?: ComponentStatusInfo;
     error?: string;

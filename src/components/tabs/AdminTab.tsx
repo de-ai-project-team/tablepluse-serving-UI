@@ -92,6 +92,11 @@ export function AdminTab() {
     return `${(ms / 1000).toFixed(1)}s lag`;
   };
 
+  const isResolvedOutcome = (outcome: string, resolved?: boolean) =>
+    outcome === 'resolved' ||
+    outcome === 'resolved_by_later_settlement' ||
+    resolved === true;
+
   const scrollToAnomaly = (runId: string) => {
     setHighlightedRunId(runId);
     const el = document.getElementById(`anomaly-${runId}`);
@@ -310,6 +315,8 @@ export function AdminTab() {
                 const isFailed = item.status === 'FAILED';
                 const isPending = item.status === 'PENDING';
                 const isGap = item.status === 'GAP';
+                const isResolvedByLaterSettlement =
+                  item.status === 'RESOLVED' && item.resolution === 'later_settlement';
 
                 let dotColor = 'bg-slate-400';
                 if (isApplied) dotColor = 'bg-emerald-500';
@@ -336,11 +343,11 @@ export function AdminTab() {
                             </span>
                           )}
                           <span className={`text-xs font-bold px-2.5 py-0.5 rounded-md ${
-                            isApplied ? 'bg-emerald-500/15 text-emerald-500' :
+                            isApplied || isResolvedByLaterSettlement ? 'bg-emerald-500/15 text-emerald-500' :
                             isFailed ? 'bg-red-500/15 text-red-500' :
                             isPending ? 'bg-amber-500/15 text-amber-500' : 'bg-amber-500/15 text-amber-500'
                           }`}>
-                            {item.status}
+                            {isResolvedByLaterSettlement ? 'Resolved by later settlement' : item.status}
                           </span>
                         </div>
                       </div>
@@ -348,6 +355,11 @@ export function AdminTab() {
                       <div className="text-xs font-mono text-text-secondary mb-1">
                         ID: <span className="text-blue-500 font-bold">{item.run_id}</span>
                       </div>
+                      {isResolvedByLaterSettlement && (
+                        <div className="text-xs text-emerald-500 font-bold mb-1">
+                          Resolved by: {item.resolved_by_run_id || 'later settlement'}
+                        </div>
+                      )}
                       <div className="text-xs text-text-primary font-medium mb-1">
                         {item.store_id} / <span className="font-bold">{item.ingredient_id}</span>
                       </div>
@@ -396,7 +408,11 @@ export function AdminTab() {
             <div className="space-y-8">
               {selectedAnomalies.map((ano, idx) => {
                 const isUnresolved = ano.outcome === 'unresolved_gap';
-                const isResolved = ano.outcome === 'resolved';
+                const isResolved = isResolvedOutcome(ano.outcome, ano.step3_apply?.resolved);
+                const isResolvedByLaterSettlement =
+                  ano.outcome === 'resolved_by_later_settlement' ||
+                  ano.step2_compute_correction?.source === 'later_settlement' ||
+                  ano.step3_apply?.resolution === 'later_settlement';
 
                 return (
                   <div 
@@ -414,21 +430,49 @@ export function AdminTab() {
                         </span>
                         <span className="text-xs font-mono text-text-primary font-bold">{ano.run_id}</span>
                         <span className="text-xs text-text-secondary">({formatRelativeTime(ano.detected_at)})</span>
+                        {isResolvedByLaterSettlement && (
+                          <span className="text-xs font-bold text-emerald-500">
+                            Resolved by later settlement
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-text-secondary">{ano.store_id} / {ano.ingredient_id}</span>
-                        {ano.escalate && (
+                        {ano.escalate && !isResolved && (
                           <span className="px-2.5 py-1 rounded-md text-xs font-extrabold bg-red-500/15 text-red-500 border border-red-500/30 animate-pulse">
                             ESCALATE
                           </span>
                         )}
+                        {isResolved && (
+                          <span className="px-2.5 py-1 rounded-md text-xs font-extrabold bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
+                            RESOLVED
+                          </span>
+                        )}
+                        {isResolved && (
+                          <span className="text-xs font-bold text-emerald-500">Escalation cleared</span>
+                        )}
                         <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${
                           isResolved ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'
                         }`}>
-                          {ano.outcome}
+                          {isResolved ? 'RESOLVED' : ano.outcome}
                         </span>
                       </div>
                     </div>
+
+                    {isResolvedByLaterSettlement && ano.superseding_settlement && (
+                      <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+                        <div className="text-xs font-extrabold uppercase text-emerald-500 mb-3">
+                          Resolution settlement
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-text-primary">
+                          <span>Run ID: <strong>{ano.superseding_settlement.run_id}</strong></span>
+                          <span>Emitted: <strong>{formatRelativeTime(ano.superseding_settlement.emitted_at)}</strong></span>
+                          <span>Sequence: <strong>{ano.superseding_settlement.settled_sequence}</strong></span>
+                          <span>Quantity: <strong>{ano.superseding_settlement.settled_quantity}</strong></span>
+                          <span>Version: <strong>{ano.superseding_settlement.settlement_version}</strong></span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* 3-Step Stepper */}
                     <div className="space-y-6">
@@ -439,6 +483,9 @@ export function AdminTab() {
                         status="complete"
                         content={
                           <div className="space-y-3">
+                            <span className="inline-flex px-2.5 py-1 rounded bg-red-500/15 text-red-400 text-xs font-extrabold">
+                              MISMATCH DETECTED
+                            </span>
                             <div className="flex flex-wrap gap-1.5">
                               {ano.step1_detect.reasons.map((r, ri) => (
                                 <span key={ri} className="px-2 py-0.5 rounded text-xs bg-red-500/10 text-red-400 font-medium">
@@ -473,9 +520,14 @@ export function AdminTab() {
                       <StepBox 
                         stepNumber={2}
                         title="Compute Correction (Athena over S3 Bronze)"
-                        status={ano.step2_compute_correction ? (isUnresolved ? 'warning' : 'complete') : 'pending'}
+                        status={ano.step2_compute_correction ? (isUnresolved && !isResolvedByLaterSettlement ? 'warning' : 'complete') : 'pending'}
                         content={ano.step2_compute_correction ? (
                           <div className="space-y-3">
+                            {ano.step2_compute_correction.source === 'later_settlement' && (
+                              <span className="inline-flex px-2.5 py-1 rounded bg-emerald-500/15 text-emerald-500 text-xs font-extrabold">
+                                COVERED BY LATER SETTLEMENT
+                              </span>
+                            )}
                             <div className="flex items-center gap-2 flex-wrap text-xs">
                               <span className="px-2.5 py-1 rounded bg-blue-500/15 text-blue-400 font-bold font-mono">
                                 source: {ano.step2_compute_correction.source}
@@ -512,6 +564,18 @@ WHERE store_id = '${ano.store_id}' AND ingredient_id = '${ano.ingredient_id}'
                         status={ano.step3_apply ? (ano.step3_apply.resolved ? 'complete' : 'warning') : 'pending'}
                         content={ano.step3_apply ? (
                           <div className="space-y-3">
+                            {ano.step3_apply.resolution === 'later_settlement' && (
+                              <div className="space-y-2">
+                                <span className="inline-flex px-2.5 py-1 rounded bg-emerald-500/15 text-emerald-500 text-xs font-extrabold">
+                                  RESOLVED BY LATER SETTLEMENT
+                                </span>
+                                {ano.step3_apply.resolved_by_run_id && (
+                                  <p className="text-xs text-text-primary">
+                                    Resolution run: <strong>{ano.step3_apply.resolved_by_run_id}</strong>
+                                  </p>
+                                )}
+                              </div>
+                            )}
                             <div className="grid grid-cols-2 gap-3 text-xs">
                               <div className="bg-surface p-3 rounded-xl border border-border/60">
                                 <span className="text-text-secondary font-bold block mb-1">Expected</span>

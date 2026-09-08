@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Database, Server, RefreshCcw, SearchCode, AlertTriangle, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { TraceabilityData, ComponentStatusInfo } from '../../types';
 import { TraceabilitySkeleton } from '../skeletons/TraceabilitySkeleton';
@@ -8,7 +8,7 @@ export function AdminTab() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastSuccessTime, setLastSuccessTime] = useState<Date>(new Date());
+  const lastSuccessTimeRef = useRef<Date>(new Date());
   const [isStale, setIsStale] = useState<boolean>(false);
   const [highlightedRunId, setHighlightedRunId] = useState<string | null>(null);
 
@@ -39,7 +39,7 @@ export function AdminTab() {
 
         return json.settlement_timeline?.[0]?.run_id || null;
       });
-      setLastSuccessTime(new Date());
+      lastSuccessTimeRef.current = new Date();
       setIsStale(false);
       setError(null);
     } catch (err: any) {
@@ -59,7 +59,7 @@ export function AdminTab() {
     }, 30000); // 30s polling
 
     const staleCheck = setInterval(() => {
-      if (Date.now() - lastSuccessTime.getTime() > 60000) {
+      if (Date.now() - lastSuccessTimeRef.current.getTime() > 60000) {
         setIsStale(true);
       }
     }, 10000);
@@ -85,6 +85,19 @@ export function AdminTab() {
     if (!isoString) return '--:--:--';
     const date = new Date(isoString);
     return date.toTimeString().split(' ')[0];
+  };
+
+  const formatWindowRange = (startIsoString: string | null, minutes = 5) => {
+    if (!startIsoString) return 'No recent window';
+
+    const start = new Date(startIsoString);
+    if (Number.isNaN(start.getTime())) return 'No recent window';
+
+    const end = new Date(start.getTime() + minutes * 60 * 1000);
+    const formatWindowTime = (date: Date) =>
+      date.toTimeString().split(' ')[0].slice(0, 5);
+
+    return `${formatWindowTime(start)} – ${formatWindowTime(end)}`;
   };
 
   const formatLag = (ms: number | null | undefined) => {
@@ -204,9 +217,7 @@ export function AdminTab() {
       <div className="space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2 px-1 text-xs font-bold text-text-secondary">
           <span>CloudWatch operational activity</span>
-          <span>
-            Observed at: {formatMetricTimestamp(comp.observed_at)} · Window: {comp.window_minutes ?? '—'} min
-          </span>
+          <span>Observed at: {formatMetricTimestamp(comp.observed_at)}</span>
         </div>
         <div className="flex flex-col lg:flex-row lg:items-stretch gap-3">
           <ComponentCard
@@ -274,6 +285,9 @@ export function AdminTab() {
             <Clock className="w-6 h-6 text-blue-500" />
             5-Min Settlement Timeline
           </h3>
+          <div className="mb-6 rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-sm font-bold text-text-secondary">
+            Window: {formatWindowRange(recon.latest_window, 5)} · checked {formatRelativeTime(recon.latest_checked_at)}
+          </div>
 
           {timeline.length === 0 ? (
             <p className="text-text-secondary text-center py-8">최근 {data?._meta?.lookback_days || 2}일 내 해당 이벤트 없음</p>

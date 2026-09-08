@@ -77,10 +77,19 @@ export interface ComponentStatusInfo {
   downtime_ms?: number | null;
   throttled_15m?: number;
   system_errors_15m?: number;
+  last_request_at?: string | null;
+  incoming_records_15m?: number;
+  incoming_bytes_15m?: number;
+  last_activity_at?: string | null;
+  last_metric_at?: string | null;
+  writes_15m?: number;
+  last_write_metric_at?: string | null;
 }
 
 export interface TraceabilityData {
   components: {
+    observed_at?: string | null;
+    window_minutes?: number | null;
     api_gateway?: ComponentStatusInfo;
     kinesis?: ComponentStatusInfo;
     flink?: ComponentStatusInfo;

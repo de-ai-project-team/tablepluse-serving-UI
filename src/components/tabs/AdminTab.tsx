@@ -93,6 +93,11 @@ export function AdminTab() {
     return `${(ms / 1000).toFixed(1)}s lag`;
   };
 
+  const formatMetricTimestamp = (isoString: string | null | undefined) => {
+    if (!isoString) return 'No recent datapoint';
+    return `${formatRelativeTime(isoString)} · ${formatTimeOnly(isoString)}`;
+  };
+
   const isResolvedOutcome = (outcome: string, resolved?: boolean) =>
     outcome === 'resolved' ||
     outcome === 'resolved_by_later_settlement' ||
@@ -196,7 +201,14 @@ export function AdminTab() {
       </div>
 
       {/* 2. Component Status Cards (4 cards) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2 px-1 text-xs font-bold text-text-secondary">
+          <span>CloudWatch operational activity</span>
+          <span>
+            Observed at: {formatMetricTimestamp(comp.observed_at)} · Window: {comp.window_minutes ?? '—'} min
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <ComponentCard 
           name="API Gateway" 
           icon={<Server className="w-6 h-6 text-blue-500" />}
@@ -212,6 +224,10 @@ export function AdminTab() {
                 <span className={`font-bold ${(info?.errors_5xx_15m ?? 0) > 0 ? 'text-red-500' : 'text-text-primary'}`}>
                   {info?.errors_5xx_15m ?? 0} 건
                 </span>
+              </div>
+              <div className="flex justify-between items-center text-sm mt-1">
+                <span className="text-text-secondary font-medium">Last request</span>
+                <span className="font-bold text-text-primary text-right">{formatMetricTimestamp(info?.last_request_at)}</span>
               </div>
             </>
           )}
@@ -235,6 +251,18 @@ export function AdminTab() {
                   {info?.put_failed_15m ?? 0}
                 </span>
               </div>
+              <div className="flex justify-between items-center text-sm mt-1">
+                <span className="text-text-secondary font-medium">Incoming records</span>
+                <span className="font-bold text-text-primary">{(info?.incoming_records_15m ?? 0).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm mt-1">
+                <span className="text-text-secondary font-medium">Incoming bytes</span>
+                <span className="font-bold text-text-primary">{(info?.incoming_bytes_15m ?? 0).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm mt-1">
+                <span className="text-text-secondary font-medium">Last activity</span>
+                <span className="font-bold text-text-primary text-right">{formatMetricTimestamp(info?.last_activity_at)}</span>
+              </div>
             </>
           )}
         />
@@ -256,6 +284,10 @@ export function AdminTab() {
                 <span className={`font-bold ${(info?.downtime_ms ?? 0) > 0 || (info?.full_restarts_15m ?? 0) > 0 ? 'text-red-500' : 'text-text-primary'}`}>
                   {info?.downtime_ms ? `${info.downtime_ms}ms` : '0ms'} ({info?.full_restarts_15m ?? 0}회)
                 </span>
+              </div>
+              <div className="flex justify-between items-center text-sm mt-1">
+                <span className="text-text-secondary font-medium">Last metric</span>
+                <span className="font-bold text-text-primary text-right">{formatMetricTimestamp(info?.last_metric_at)}</span>
               </div>
             </>
           )}
@@ -279,9 +311,18 @@ export function AdminTab() {
                   {info?.system_errors_15m ?? 0}
                 </span>
               </div>
+              <div className="flex justify-between items-center text-sm mt-1">
+                <span className="text-text-secondary font-medium">CloudWatch writes (15m)</span>
+                <span className="font-bold text-text-primary">{(info?.writes_15m ?? 0).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm mt-1">
+                <span className="text-text-secondary font-medium">Last write metric</span>
+                <span className="font-bold text-text-primary text-right">{formatMetricTimestamp(info?.last_write_metric_at)}</span>
+              </div>
             </>
           )}
         />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

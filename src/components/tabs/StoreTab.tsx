@@ -114,6 +114,7 @@ export function StoreTab() {
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
   const [pendingActions, setPendingActions] = useState<Record<string, boolean>>({});
+  const [approvedOrders, setApprovedOrders] = useState<Record<string, string | null>>({});
 
   const setPendingAction = (ingredientId: string, pending: boolean) => {
     setPendingActions(prev => ({
@@ -145,6 +146,16 @@ export function StoreTab() {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
       const json: DashboardData = await res.json();
+
+      setApprovedOrders(prev => {
+        const next = { ...prev };
+        Object.keys(prev).forEach(ingredientId => {
+          const serverOrder = (json.purchase_orders || []).find(po => po.ingredient_id === ingredientId);
+          if (serverOrder?.status === 'ORDERED') next[ingredientId] = serverOrder.purchase_order_id;
+          if (serverOrder?.status === 'RECEIVED') delete next[ingredientId];
+        });
+        return next;
+      });
 
       // purchase_orders is required to safely render an action button.
       // Do not treat a missing field as an empty list.
@@ -249,7 +260,10 @@ export function StoreTab() {
   });
 
   function getPurchaseOrder(reorderItem: ReorderItem): PurchaseOrder | undefined {
-    return purchaseOrders.find(po => po.ingredient_id === reorderItem.ingredient_id);
+    const matches = purchaseOrders.filter(po => po.ingredient_id === reorderItem.ingredient_id);
+    // A dashboard may contain historical RECEIVED POs and the current ORDERED
+    // PO for the same ingredient. The active order must win.
+    return matches.find(po => po.status === 'ORDERED') || matches[0];
   }
 
   async function handleOrderApproval(reorderItem: ReorderItem) {
@@ -283,9 +297,13 @@ export function StoreTab() {
         throw new Error(await readErrorMessage(res, '발주 요청에 실패했습니다.'));
       }
 
-      const result = await res.json();
+      const result = await res.json().catch(() => null);
+      setApprovedOrders(prev => ({
+        ...prev,
+        [ingredientId]: result?.purchase_order_id || null
+      }));
       if (!result?.purchase_order_id) {
-        throw new Error('발주 응답에 purchase_order_id가 없습니다.');
+        console.warn('Purchase order succeeded without purchase_order_id; confirming from Dashboard.');
       }
 
       // The server response is acknowledged, but ORDERED is confirmed only
@@ -601,6 +619,7 @@ export function StoreTab() {
               {filteredReorderItems.map((reorder) => {
                 const purchaseOrder = getPurchaseOrder(reorder);
                 const isPending = pendingActions[reorder.ingredient_id] === true;
+                const isApproved = purchaseOrder?.status === 'ORDERED' || Object.prototype.hasOwnProperty.call(approvedOrders, reorder.ingredient_id);
 
                 return (
                 <div key={reorder.ingredient_id} className="bg-surface border border-red-500/30 rounded-2xl p-6 shadow-md flex items-center justify-between gap-4">
@@ -619,9 +638,9 @@ export function StoreTab() {
                     <span className="text-sm font-bold text-amber-500 text-right">
                       최신 상태 확인 중
                     </span>
-                  ) : purchaseOrder?.status === 'ORDERED' ? (
+                ) : isApproved ? (
                     <button
-                      onClick={() => handleReceive(reorder, purchaseOrder)}
+                      onClick={() => purchaseOrder?.purchase_order_id ? handleReceive(reorder, purchaseOrder) : fetchDashboardData(true)}
                       disabled={isPending}
                       className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold px-5 py-3 rounded-xl shadow-md transition-transform active:scale-95 shrink-pointer"
                     >
